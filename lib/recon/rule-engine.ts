@@ -29,12 +29,20 @@ export interface RuleContext {
   /** Open ledger entries for the org, used for split/batch reconstruction. */
   openLedgerEntries: LedgerEntry[];
   vendorPattern: VendorPattern | null;
+  /**
+   * Demand that the party names agree before arithmetic alone may resolve a
+   * match. Set for candidates retrieved below the ambiguous band, where the
+   * similarity score carries no evidence and amount/date agreement could be
+   * coincidental.
+   */
+  requireVendorMatch?: boolean;
 }
 
 /**
- * Deterministic fallback, evaluated only for transactions whose best embedding
- * score landed in the ambiguous band. Rules are pure functions of the context —
- * no I/O — so they can be unit-tested and audited in isolation.
+ * Deterministic fallback for every transaction the embedding score did not
+ * auto-match. Rules are pure functions of the context — no I/O — so they can be
+ * unit-tested and audited in isolation, and each either resolves a match or
+ * declines; none can force one.
  */
 export function evaluateRules(context: RuleContext): RuleEvaluation {
   const { transaction, candidates, config, vendorPattern } = context;
@@ -57,7 +65,7 @@ export function evaluateRules(context: RuleContext): RuleEvaluation {
   return unresolved(
     isTie
       ? "Top candidates are within the tie epsilon and no deterministic rule separated them"
-      : "No deterministic rule confirmed the ambiguous candidate"
+      : "No deterministic rule confirmed a candidate"
   );
 }
 
@@ -71,7 +79,8 @@ function disambiguate(context: RuleContext, candidates: Candidate[]): RuleEvalua
   const passing = candidates.filter(
     (candidate) =>
       withinAmountTolerance(transaction.amount, candidate.ledgerEntry.amount, config) &&
-      withinDateWindow(transaction.txnDate, candidate.ledgerEntry.entryDate, config)
+      withinDateWindow(transaction.txnDate, candidate.ledgerEntry.entryDate, config) &&
+      (!context.requireVendorMatch || sameVendor(transaction, candidate.ledgerEntry))
   );
 
   if (passing.length !== 1) return unresolved("");

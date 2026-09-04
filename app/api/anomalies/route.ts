@@ -1,4 +1,4 @@
-import { withOrg } from "@/lib/api";
+import { withOrg, withoutEmbedding } from "@/lib/api";
 import { getReconStore } from "@/lib/recon/store";
 
 export async function GET(request: Request) {
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
     return Response.json({
       anomalies: transactions.map((transaction) => ({
-        transaction,
+        transaction: withoutEmbedding(transaction),
         reason: byTransaction.get(transaction.id)?.message ?? null,
         flaggedAt: byTransaction.get(transaction.id)?.createdAt ?? transaction.createdAt,
       })),

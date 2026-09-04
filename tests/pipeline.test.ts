@@ -102,6 +102,65 @@ describe("reconciliation pipeline", () => {
     expect(updated?.status).toBe("reviewed");
   });
 
+  it("applies deterministic rules to candidates retrieved below the ambiguous band", async () => {
+    const result = await runReconciliation({
+      orgId: ORG,
+      store,
+      embeddings: new LocalEmbeddingClient(),
+      // Force every candidate under the band floor: rules must still resolve
+      // the fee-adjusted wire and the batched deposit on amount/date/vendor.
+      configOverrides: { autoMatchThreshold: 0.999, ambiguousBandFloor: 0.998 },
+    });
+
+    expect(result.ruleMatched).toBeGreaterThan(0);
+    const ruleMatches = await store.listMatches(ORG);
+    expect(ruleMatches.some((m) => m.matchMethod === "rule")).toBe(true);
+  });
+
+  it("does not let a below-band candidate match on amount and date alone", async () => {
+    const isolated = new LocalReconStore(null);
+    await isolated.insertLedgerEntries(ORG, [
+      {
+        orgId: ORG,
+        entryType: "invoice",
+        amount: 512.35,
+        currency: "USD",
+        vendorName: "Fabrikam Supplies",
+        memo: "Invoice #4410",
+        entryDate: "2026-08-09",
+      },
+    ]);
+    await isolated.upsertTransactions(ORG, [
+      {
+        orgId: ORG,
+        externalId: "x:1",
+        accountId: "acct",
+        amount: 512.35,
+        currency: "USD",
+        txnDate: "2026-08-09",
+        payeeRaw: "UNKNOWN VENDOR LLC",
+        memo: null,
+      },
+    ]);
+
+    const result = await runReconciliation({
+      orgId: ORG,
+      store: isolated,
+      embeddings: new LocalEmbeddingClient(),
+      configOverrides: { autoMatchThreshold: 0.999, ambiguousBandFloor: 0.998 },
+    });
+
+    expect(result.anomalous).toBe(1);
+    expect(await isolated.listMatches(ORG)).toHaveLength(0);
+  });
+
+  it("excludes an unreconciled outlier from the vendor baseline it is measured against", async () => {
+    await runReconciliation({ orgId: ORG, store, embeddings: new LocalEmbeddingClient() });
+    const pattern = await store.getVendorPattern(ORG, "cloudspend hosting");
+    expect(pattern).not.toBeNull();
+    expect(pattern!.avgAmount).toBeLessThan(1000);
+  });
+
   it("keeps tenants isolated", async () => {
     await runReconciliation({ orgId: ORG, store, embeddings: new LocalEmbeddingClient() });
     expect(await store.listTransactions("other-org")).toHaveLength(0);

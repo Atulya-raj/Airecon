@@ -13,13 +13,18 @@ queued for a human.
 
 ```
 normalize → serialize → embed → top-K candidates
-   ≥ 0.92            → auto match (method: embedding)
-   0.75 – 0.92       → deterministic rules → match (method: rule) or queue
-   < 0.75            → anomaly signals → review queue
-   human confirms    → match (method: manual)
+   ≥ 0.92    → auto match (method: embedding)
+   otherwise → deterministic rules → match (method: rule)
+               or anomaly signals  → review queue
+   human confirms → match (method: manual)
 ```
 
-Rules applied in the ambiguous band, in `lib/recon/rule-engine.ts`:
+Rules run for everything the embedding score did not auto-match, not only the
+0.75–0.92 band: below the floor the score carries no information, but amount,
+date and vendor agreement still do. Below-band candidates must additionally
+agree on the party, so arithmetic coincidence alone can never resolve a match.
+
+The rules, in `lib/recon/rule-engine.ts`:
 
 | Rule | Handles |
 | --- | --- |
@@ -45,7 +50,15 @@ deterministic local embedder (`local-hash-v1`). Open the dashboard, click
 **Load demo book**, then **Run reconciliation** to exercise the clean,
 fee-adjusted, batched, recurring, outlier and unknown-vendor paths.
 
-Copy `.env.example` to `.env.local` to point at real infrastructure.
+Copy `.env.example` to `.env.local` to point at real infrastructure. API routes
+authenticate from the session, so set `RECON_DEV_ORG_ID=demo-org` when calling
+them with curl. The local store persists to `.local-recon-db.json` — delete it
+for a clean seed.
+
+The local hash embedder is deterministic, not semantic: it scores well below the
+auto-match threshold, so locally the deterministic rules do the matching and a
+purely semantic case (`AMZN MKTP US*2K3F9` → `Amazon`) stays in the review queue.
+That path needs a real model — set `OPENAI_API_KEY` and run the embedding service.
 
 ### Embedding service
 

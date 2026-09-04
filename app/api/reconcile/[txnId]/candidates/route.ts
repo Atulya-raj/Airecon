@@ -1,4 +1,4 @@
-import { withOrg } from "@/lib/api";
+import { withOrg, withoutEmbedding } from "@/lib/api";
 import { getCandidatesForReview } from "@/lib/recon/pipeline";
 
 export async function GET(
@@ -13,9 +13,9 @@ export async function GET(
     });
 
     return Response.json({
-      transaction,
+      transaction: withoutEmbedding(transaction),
       candidates: candidates.map((c) => ({
-        ledgerEntry: c.ledgerEntry,
+        ledgerEntry: withoutEmbedding(c.ledgerEntry),
         score: c.score,
       })),
     });

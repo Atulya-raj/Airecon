@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { badRequest, withOrg } from "@/lib/api";
+import { badRequest, withOrg, withoutEmbedding } from "@/lib/api";
 import { getReconStore } from "@/lib/recon/store";
 
 const entrySchema = z.object({
@@ -16,7 +16,7 @@ const bodySchema = z.object({ entries: z.array(entrySchema).min(1).max(500) });
 export async function GET(request: Request) {
   return withOrg(request, async (session) => {
     const entries = await getReconStore().listOpenLedgerEntries(session.orgId);
-    return Response.json({ entries });
+    return Response.json({ entries: entries.map(withoutEmbedding) });
   });
 }
 
@@ -29,6 +29,6 @@ export async function POST(request: Request) {
       session.orgId,
       parsed.data.entries.map((entry) => ({ ...entry, orgId: session.orgId }))
     );
-    return Response.json({ entries });
+    return Response.json({ entries: entries.map(withoutEmbedding) });
   });
 }

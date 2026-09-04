@@ -1,4 +1,4 @@
-import { withOrg } from "@/lib/api";
+import { withOrg, withoutEmbedding } from "@/lib/api";
 import { getReconStore } from "@/lib/recon/store";
 import type { TransactionStatus } from "@/lib/recon/types";
 
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
     return Response.json({
       transactions: transactions.map((transaction) => ({
-        transaction,
+        transaction: withoutEmbedding(transaction),
         match: latestMatch.get(transaction.id) ?? null,
       })),
     });

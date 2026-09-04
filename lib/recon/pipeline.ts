@@ -38,7 +38,7 @@ export interface ReconcileRunResult {
 
 /**
  * End-to-end match pipeline: embed → top-K similarity → threshold branch →
- * deterministic rules for the ambiguous band → match or anomaly queue.
+ * deterministic rules → match or anomaly queue.
  * Every outcome writes an append-only row to `matches` or a queued anomaly;
  * nothing is silently dropped.
  */
@@ -107,8 +107,12 @@ export async function reconcileTransaction({
     };
   }
 
+  // Rules run for everything that did not auto-match, not just the ambiguous
+  // band: below the floor the similarity score is uninformative, but amount,
+  // date and vendor agreement still are. Below-band candidates additionally
+  // have to agree on the party so arithmetic coincidence cannot resolve them.
   const inAmbiguousBand = best !== undefined && best.score >= config.ambiguousBandFloor;
-  if (inAmbiguousBand) {
+  {
     const openLedgerEntries = await store.listOpenLedgerEntries(transaction.orgId);
     const evaluation = evaluateRules({
       transaction,
@@ -116,6 +120,7 @@ export async function reconcileTransaction({
       config,
       openLedgerEntries,
       vendorPattern: pattern,
+      requireVendorMatch: !inAmbiguousBand,
     });
 
     if (evaluation.resolved) {
@@ -161,7 +166,7 @@ export async function reconcileTransaction({
   const rationale =
     signals.length > 0
       ? signals.map((s) => s.detail).join("; ")
-      : "No candidate cleared the ambiguous band and no rule resolved the match";
+      : "No candidate cleared the auto-match threshold and no rule resolved the match";
   await store.insertNotification({
     orgId: transaction.orgId,
     kind: inAmbiguousBand ? "low_confidence" : "anomaly",
@@ -308,7 +313,14 @@ async function refreshVendorPattern(store: ReconStore, transaction: Transaction)
   const key = vendorKey(transaction.payeeRaw);
   if (!key) return null;
   const history = await store.listVendorHistory(transaction.orgId, key);
-  const priorHistory = history.filter((t) => t.id !== transaction.id);
+  // Only reconciled transactions form the baseline. An unreviewed outlier in
+  // the same run would otherwise widen the spread it is measured against, and
+  // the vendor would start accepting almost any amount.
+  const priorHistory = history.filter(
+    (t) =>
+      t.id !== transaction.id &&
+      (t.status === "auto_matched" || t.status === "reviewed")
+  );
   if (priorHistory.length === 0) return store.getVendorPattern(transaction.orgId, key);
   return store.upsertVendorPattern(
     computeVendorPattern(transaction.orgId, key, priorHistory)

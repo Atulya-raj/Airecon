@@ -32,3 +32,15 @@ export async function withOrg(
 export function badRequest(details: unknown): Response {
   return Response.json({ error: "Invalid input", details }, { status: 400 });
 }
+
+/**
+ * Strips the embedding vector before serialization — 1536 floats per row is
+ * bulk no API consumer can use, and it dwarfs the record itself.
+ */
+export function withoutEmbedding<T extends { embedding: number[] | null }>(
+  record: T
+): Omit<T, "embedding"> {
+  const rest = { ...record };
+  delete (rest as { embedding?: number[] | null }).embedding;
+  return rest;
+}
