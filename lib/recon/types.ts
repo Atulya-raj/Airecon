@@ -100,6 +100,9 @@ export interface AnomalySignal {
  */
 export interface ReconConfig {
   orgId: string;
+  displayName?: string;
+  baseCurrency?: Currency;
+  fiscalYearStart?: string;
   autoMatchThreshold: number;
   ambiguousBandFloor: number;
   topK: number;
@@ -114,4 +117,37 @@ export interface ReconConfig {
   anomalyIntervalFactor: number;
   /** Confidence assigned when the rule engine resolves an ambiguous case. */
   ruleMatchConfidence: number;
+}
+
+export interface ReconciledFlow {
+  date: string; // ISO date (YYYY-MM-DD)
+  amount: number;
+  type: "inflow" | "outflow";
+  description: string;
+}
+
+export interface CashFlowPoint {
+  date: string; // ISO date (YYYY-MM-DD)
+  actualNet?: number;
+  projectedNet?: number;
+  lowerBound?: number;
+  upperBound?: number;
+  cumulativeNet: number;
+}
+
+export interface ForecastSummary {
+  avgDailyInflow: number;
+  avgDailyOutflow: number;
+  netDailyBurnOrGrowth: number;
+  projectedEndingCashDelta: number;
+  confidenceLevel: number;
+}
+
+export interface ForecastResult {
+  orgId: string;
+  horizonDays: number;
+  historicalPoints: CashFlowPoint[];
+  projectedPoints: CashFlowPoint[];
+  summary: ForecastSummary;
+  generatedAt: string;
 }

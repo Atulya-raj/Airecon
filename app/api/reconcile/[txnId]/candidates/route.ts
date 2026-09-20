@@ -3,9 +3,9 @@ import { getCandidatesForReview } from "@/lib/recon/pipeline";
 
 export async function GET(
   request: Request,
-  context: RouteContext<"/api/reconcile/[txnId]/candidates">
+  { params }: { params: Promise<{ txnId: string }> }
 ) {
-  const { txnId } = await context.params;
+  const { txnId } = await params;
   return withOrg(request, async (session) => {
     const { transaction, candidates } = await getCandidatesForReview({
       orgId: session.orgId,

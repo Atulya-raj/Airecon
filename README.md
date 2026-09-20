@@ -85,9 +85,18 @@ npm run build
 cd services/embedding && pytest
 ```
 
+### Forecasting & Baselines
+
+A time-series cash-flow forecasting engine lives in `lib/recon/forecast.ts` and
+is exposed via `GET /api/forecast`. It projects daily net flows, cumulative cash
+trajectories, and 95% confidence intervals over 30-, 60-, and 90-day horizons.
+Per-tenant matching thresholds can be inspected and updated via `GET /api/config`
+and `PATCH /api/config`.
+
 ## Not yet built
 
-Forecasting, accounting-system sync, billing, and production Plaid/Teller
-credentials. Ingestion adapters normalize both providers' payload shapes today,
+Accounting-system two-way sync (QuickBooks / Xero), Stripe subscription billing,
+Inngest/QStash background job runner, and production Plaid/Teller credential
+exchange. Ingestion adapters normalize both providers' payload shapes today,
 but amount-sign semantics should be confirmed against live provider data before
 production use.

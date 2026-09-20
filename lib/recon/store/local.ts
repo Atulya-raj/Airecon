@@ -7,6 +7,7 @@ import type {
   LedgerEntry,
   Match,
   ReconConfig,
+  ReconciledFlow,
   Transaction,
   TransactionStatus,
   VendorPattern,
@@ -255,6 +256,40 @@ export class LocalReconStore implements ReconStore {
     this.data.notifications.push(row);
     this.persist();
     return row;
+  }
+
+  async listVendorPatterns(orgId: string): Promise<VendorPattern[]> {
+    return this.data.vendorPatterns
+      .filter((p) => p.orgId === orgId)
+      .sort((a, b) => b.sampleSize - a.sampleSize);
+  }
+
+  async listReconciledFlows(orgId: string): Promise<ReconciledFlow[]> {
+    const matchedTxns = this.data.transactions.filter(
+      (t) => t.orgId === orgId && (t.status === "auto_matched" || t.status === "reviewed")
+    );
+
+    const ledgerMap = new Map(this.data.ledgerEntries.map((l) => [l.id, l]));
+    const matchesByTxn = new Map(this.data.matches.map((m) => [m.transactionId, m]));
+
+    return matchedTxns
+      .map((t) => {
+        const match = matchesByTxn.get(t.id);
+        const entry = match?.ledgerEntryId ? ledgerMap.get(match.ledgerEntryId) : null;
+        const isInflow =
+          entry?.entryType === "invoice" ||
+          entry?.entryType === "refund" ||
+          t.memo?.toLowerCase().includes("wire in") ||
+          t.memo?.toLowerCase().includes("deposit");
+
+        return {
+          date: t.txnDate,
+          amount: Math.abs(t.amount),
+          type: (isInflow ? "inflow" : "outflow") as "inflow" | "outflow",
+          description: t.payeeRaw ?? t.memo ?? "Reconciled item",
+        };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
   }
 
   async listNotifications(orgId: string, limit = 50): Promise<Notification[]> {

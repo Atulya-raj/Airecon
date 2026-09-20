@@ -8,6 +8,7 @@ import type {
   Match,
   MatchMethod,
   ReconConfig,
+  ReconciledFlow,
   Transaction,
   TransactionStatus,
   VendorPattern,
@@ -388,6 +389,67 @@ export class SupabaseReconStore implements ReconStore {
       .limit(limit);
     if (error) throw new Error(error.message);
     return (data as NotificationRow[]).map(toNotification);
+  }
+
+  async listVendorPatterns(orgId: string): Promise<VendorPattern[]> {
+    const { data, error } = await this.client
+      .from("vendor_patterns")
+      .select("*")
+      .eq("org_id", orgId)
+      .order("sample_size", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data as VendorPatternRow[]).map(toVendorPattern);
+  }
+
+  async listReconciledFlows(orgId: string): Promise<ReconciledFlow[]> {
+    const { data: txns, error: txnError } = await this.client
+      .from("transactions")
+      .select("id, amount, txn_date, payee_raw, memo, status")
+      .eq("org_id", orgId)
+      .in("status", ["auto_matched", "reviewed"])
+      .order("txn_date", { ascending: true });
+    if (txnError) throw new Error(txnError.message);
+
+    const { data: matches, error: matchError } = await this.client
+      .from("matches")
+      .select("transaction_id, ledger_entry_id")
+      .eq("org_id", orgId);
+    if (matchError) throw new Error(matchError.message);
+
+    const ledgerIds = (matches ?? [])
+      .map((m) => m.ledger_entry_id)
+      .filter(Boolean) as string[];
+
+    let entryTypes = new Map<string, string>();
+    if (ledgerIds.length > 0) {
+      const { data: entries } = await this.client
+        .from("ledger_entries")
+        .select("id, entry_type")
+        .eq("org_id", orgId)
+        .in("id", ledgerIds);
+      if (entries) {
+        entryTypes = new Map(entries.map((e) => [e.id, e.entry_type]));
+      }
+    }
+
+    const matchesByTxn = new Map((matches ?? []).map((m) => [m.transaction_id, m.ledger_entry_id]));
+
+    return (txns ?? []).map((t) => {
+      const entryId = matchesByTxn.get(t.id);
+      const entryType = entryId ? entryTypes.get(entryId) : null;
+      const isInflow =
+        entryType === "invoice" ||
+        entryType === "refund" ||
+        t.memo?.toLowerCase().includes("wire in") ||
+        t.memo?.toLowerCase().includes("deposit");
+
+      return {
+        date: t.txn_date,
+        amount: Math.abs(num(t.amount)),
+        type: (isInflow ? "inflow" : "outflow") as "inflow" | "outflow",
+        description: t.payee_raw ?? t.memo ?? "Reconciled item",
+      };
+    });
   }
 }
 

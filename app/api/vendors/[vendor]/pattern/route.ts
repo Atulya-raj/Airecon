@@ -4,9 +4,9 @@ import { getReconStore } from "@/lib/recon/store";
 
 export async function GET(
   request: Request,
-  context: RouteContext<"/api/vendors/[vendor]/pattern">
+  { params }: { params: Promise<{ vendor: string }> }
 ) {
-  const { vendor } = await context.params;
+  const { vendor } = await params;
   return withOrg(request, async (session) => {
     const store = getReconStore();
     const key = vendorKey(decodeURIComponent(vendor));

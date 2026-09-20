@@ -9,9 +9,9 @@ const bodySchema = z.object({
 
 export async function POST(
   request: Request,
-  context: RouteContext<"/api/reconcile/[txnId]/confirm">
+  { params }: { params: Promise<{ txnId: string }> }
 ) {
-  const { txnId } = await context.params;
+  const { txnId } = await params;
   return withOrg(request, async (session) => {
     const parsed = bodySchema.safeParse(await request.json());
     if (!parsed.success) return badRequest(parsed.error.flatten());

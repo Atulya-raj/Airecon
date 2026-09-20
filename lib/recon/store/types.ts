@@ -4,6 +4,7 @@ import type {
   Match,
   MatchMethod,
   ReconConfig,
+  ReconciledFlow,
   Transaction,
   TransactionStatus,
   VendorPattern,
@@ -95,6 +96,9 @@ export interface ReconStore {
 
   getVendorPattern(orgId: string, vendorName: string): Promise<VendorPattern | null>;
   upsertVendorPattern(pattern: Omit<VendorPattern, "id">): Promise<VendorPattern>;
+  listVendorPatterns(orgId: string): Promise<VendorPattern[]>;
+
+  listReconciledFlows(orgId: string): Promise<ReconciledFlow[]>;
 
   insertNotification(
     notification: Omit<Notification, "id" | "createdAt" | "readAt">
